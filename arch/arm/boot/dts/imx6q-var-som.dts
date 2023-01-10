@@ -1,0 +1,353 @@
+/*
+ * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
+ * Donio Ron: ron.d@variscite.com
+ *
+ * Copyright 2012 Freescale Semiconductor, Inc.
+ * Copyright 2011 Linaro Ltd.
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+/dts-v1/;
+
+#define VAR_SOM_MX6
+
+#include "imx6q.dtsi"
+
+/ {
+	model = "Freescale i.MX6 Quad SOM Board";
+	compatible = "fsl,imx6q-var-som", "fsl,imx6q";
+
+	memory {
+		reg = <0x10000000 0x40000000>;
+	};
+
+	aliases {
+		mxcfb0 = &mxcfb1;
+	};
+
+	regulators {
+		compatible = "simple-bus";
+
+		reg_usb_otg_vbus: usb_otg_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			enable-active-high;
+		};
+
+		reg_usb_h1_vbus: usb_h1_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_h1_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+		};
+
+		reg_audio: tlv320aic3x_supply {
+			compatible = "regulator-fixed";
+			regulator-name = "tlv320aic3x-supply";
+			enable-active-high;
+		};
+
+		reg_mmc_3p3v: 3p3v {
+			compatible = "regulator-fixed";
+			regulator-name = "3P3V";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+	};
+
+	mxcfb1: fb@0 {
+	       compatible = "fsl,mxc_sdc_fb";
+	       disp_dev = "ldb";
+	       interface_pix_fmt = "RGB24";
+	       mode_str ="LDB-VGA";
+	       default_bpp = <16>;
+	       int_clk = <0>;
+	       late_init = <0>;
+	       status = "okay";
+	};
+
+	lcd@0 {
+		compatible = "fsl,lcd";
+		ipu_id = <0>;
+		disp_id = <0>;
+		default_ifmt = "RGB565";
+//		pinctrl-names = "default";
+//		pinctrl-0 = <&pinctrl_ipu1_1>;
+		status = "okay";
+	};
+
+	sound {
+		compatible = "fsl,imx6q-var-som-tlv320aic3x", "fsl,imx-audio-tlv320aic3x";
+		model = "tlv320aic3x-audio";
+		ssi-controller = <&ssi2>;
+		audio-codec = <&codec>;
+		audio-routing =
+			/* Headphone connected to HPLOUT, HPROUT */
+			"Headphone Jack",       "HPLOUT",
+			"Headphone Jack",       "HPROUT",
+			/* Line Out connected to LLOUT, RLOUT */
+			"Line Out",      	"LLOUT",
+			"Line Out",     	"RLOUT",
+			/* Mic connected to (MIC3L | MIC3R) */
+			"Mic Bias",		"MIC3L",
+			"Mic Bias",		"MIC3R",
+			"Mic Jack",		"Mic Bias",
+			/* Line In connected to (LINE1L | LINE2L), (LINE1R | LINE2R) */
+			"Line In",		"LINE1L",
+			"Line In",		"LINE2L",
+			"Line In",		"LINE1R",
+			"Line In",		"LINE2R";
+		mux-int-port = <2>;
+		mux-ext-port = <3>;
+	};
+};
+
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog_1>;
+
+	hog {
+		pinctrl_hog_1: hoggrp-1 {
+			fsl,pins = <
+				/* SDMMC2 CD/WP */
+				MX6QDL_PAD_KEY_COL4__GPIO4_IO14			0x80000000
+				MX6QDL_PAD_KEY_ROW4__GPIO4_IO15			0x80000000
+				/* PMIC INT */
+				MX6QDL_PAD_GPIO_17__GPIO7_IO12			0x80000000
+				/* Audio Clock */
+				MX6QDL_PAD_GPIO_0__CCM_CLKO1 			0x130b0			/* Audio Codec Clock */
+				/* Camera Clock */
+				MX6QDL_PAD_GPIO_3__CCM_CLKO2			0x130b0			/* Camera MCLK */
+
+				MX6QDL_PAD_ENET_RXD0__OSC32K_32K_OUT		0x80000000			/* WIFI Slow clock */
+				MX6QDL_PAD_SD3_DAT7__GPIO6_IO17		0x000100b0	/* wl12xx_wl_irq */
+				MX6QDL_PAD_SD3_DAT6__GPIO6_IO18		0x000000b0	/* wl12xx_bt_en */
+				MX6QDL_PAD_SD3_RST__GPIO7_IO08		0x000000b0	/* wl12xx_wl_en */
+			>;
+		};
+	};
+};
+
+&i2c2 {
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c2_2>;
+	status = "okay";
+
+	codec: tlv320aic3x@1b {
+		compatible = "ti,tlv320aic3x";
+		reg = <0x1b>;
+		clocks = <&clks 201>;
+		clock-names = "clko_clk";
+		IOVDD-supply = <&reg_audio>;
+		DVDD-supply = <&reg_audio>;
+		AVDD-supply = <&reg_audio>;
+		DRVDD-supply = <&reg_audio>;
+		gpio-reset = <&gpio1 0 1>;
+		gpio-cfg = <
+			0x0000 /* 0:Default */
+			0x0000 /* 1:Default */
+			0x0013 /* 2:FN_DMICCLK */
+			0x0000 /* 3:Default */
+			0x8014 /* 4:FN_DMICCDAT */
+			0x0000 /* 5:Default */
+		>;
+       	};
+
+	pmic: pfuze100@08 {
+		compatible = "fsl,pfuze100";
+		reg = <0x08>;
+
+		regulators {
+			sw1a_reg: sw1ab {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw1c_reg: sw1c {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw2_reg: sw2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3a_reg: sw3a {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3b_reg: sw3b {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw4_reg: sw4 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+			};
+
+			snvs_reg: vsnvs {
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vref_reg: vrefddr {
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vgen1_reg: vgen1 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen2_reg: vgen2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen3_reg: vgen3 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen4_reg: vgen4 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen5_reg: vgen5 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen6_reg: vgen6 {
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+		};
+	};
+};
+
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart3_2>;
+	fsl,uart-has-rtscts;
+	status = "okay";
+};
+
+
+&usdhc2 {	/* uSDHC2, MMC/SD card */
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2_2>;
+	cd-gpios = <&gpio4 14 0>;
+	wp-gpios = <&gpio4 15 0>;
+	no-1-8-v;
+	keep-power-in-suspend;
+	enable-sdio-wakeup;
+	vmmc-supply = <&reg_mmc_3p3v>;
+	status = "okay";
+};
+
+&usdhc3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc3_2>;
+	status = "okay";
+
+	non-removable;
+	max-frequency = <24000000>;
+	en-gpios = <&gpio7 8 0>;
+
+	wl12xx@1 {
+		compatible="ti,wl12xx";
+		interrupt = <&gpio6 17 0>;
+		bt_en = <&gpio6 18 0>;
+	};
+};
+
+&gpmi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
+
+	nand-bus-width = <8>;
+	nand-ecc-mode = "hw";
+
+	status = "okay";
+};
+
+&ldb {
+	ipu_id = <1>;
+	disp_id = <0>;
+	ext_ref = <1>;
+	mode = "sin1";
+	sec_ipu_id = <1>;
+	sec_disp_id = <1>;
+	status = "okay";
+};
+
+&cpu0 {
+	arm-supply = <&sw1a_reg>;
+	soc-supply = <&sw1c_reg>;
+	pu-supply = <&pu_dummy>; /* use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpc {
+	fsl,cpu_pupscr_sw2iso = <0xf>;
+	fsl,cpu_pupscr_sw = <0xf>;
+	fsl,cpu_pdnscr_iso2sw = <0x1>;
+	fsl,cpu_pdnscr_iso = <0x1>;
+	fsl,ldo-bypass = <1>; /* use ldo-bypass, u-boot will check it and configure */
+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+
+&gpu {
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&ssi2 {
+	fsl,mode = "i2s-slave";
+	status = "okay";
+};
+
+&audmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_audmux_2>;
+	status = "okay";
+};

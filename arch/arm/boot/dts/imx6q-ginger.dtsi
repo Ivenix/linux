@@ -1,0 +1,722 @@
+/*
+ * Copyright 2014 Ivenix Corp.
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+#include "imx6q.dtsi"
+
+/ {
+	model = "Ivenix i.MX6 Quad Ginger Board";
+	compatible = "fsl,imx6q-ginger", "fsl,imx6q";
+
+	memory {
+		reg = <0x10000000 0x40000000>;
+	};
+
+	aliases {
+		mxcfb0 = &mxcfb1;
+	};
+
+	regulators {
+		compatible = "simple-bus";
+
+		reg_mmc_3p3v: 3p3v {
+			compatible = "regulator-fixed";
+			regulator-name = "3P3V";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		reg_audio: tlv320aic3x_supply {
+			compatible = "regulator-fixed";
+			regulator-name = "tlv320aic3x-supply";
+			enable-active-high;
+		};
+	};
+
+	sound {
+		compatible = "fsl,imx6q-var-som-tlv320aic3x", "fsl,imx-audio-tlv320aic3x";
+		model = "tlv320aic3x-audio";
+		ssi-controller = <&ssi2>;
+		audio-codec = <&codec>;
+		audio-routing =
+			/* Headphone connected to HPLOUT, HPROUT */
+			"Headphone Jack",       "HPLOUT",
+			"Headphone Jack",       "HPROUT",
+			/* Line Out connected to LLOUT, RLOUT */
+			"Line Out",      	"LLOUT",
+			"Line Out",     	"RLOUT",
+			/* Mic connected to (MIC3L | MIC3R) */
+			"Mic Bias",		"MIC3L",
+			"Mic Bias",		"MIC3R",
+			"Mic Jack",		"Mic Bias",
+			/* Line In connected to (LINE1L | LINE2L), (LINE1R | LINE2R) */
+			"Line In",		"LINE1L",
+			"Line In",		"LINE2L",
+			"Line In",		"LINE1R",
+			"Line In",		"LINE2R";
+		mux-int-port = <2>;
+		mux-ext-port = <3>;
+		spk-gpio = <&gpio5 0 0>;
+	};
+
+	mxcfb1: fb@0 {
+	       compatible = "fsl,mxc_sdc_fb";
+	       disp_dev = "ldb";
+	       interface_pix_fmt = "RGB24";
+	       mode_str ="LDB-VGA";
+	       default_bpp = <16>;
+	       int_clk = <0>;
+	       late_init = <0>;
+	       status = "okay";
+	};
+
+
+    wlcore {
+		compatible = "wlcore";
+		gpio = <177>;   /* The wl8 driver expects gpio to be an integer, so gpio6_17 is (6-1)*32+17=207
+		        	   irq property must not be set as driver derives irq number from gpio if no irq set
+	 			   use edge irqs for suspend/resume */
+		platform-quirks = <1>;
+		/* if a 12xx card is there, configure the clock to WL12XX_REFCLOCK_38_XTAL */
+		board-ref-clock = <4>;
+	};
+
+	wlan_en_reg: fixedregulator@2 {
+		compatible = "regulator-fixed";
+		regulator-name = "wlan-en-regulator";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+
+		/* WLAN_EN GPIO for this board - Bank5, pin13 */
+		gpio = <&gpio7 8 0>;
+
+		/* WLAN card specific delay */
+		startup-delay-us = <70000>;
+		enable-active-high;
+	};
+
+	i2c4: i2c@4 {
+		compatible = "i2c-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		gpios = <&gpio2 21 0	// SDA
+			 &gpio2 20 0	// SCL
+			>;
+		i2c-gpio,delay-us = <50>;
+		i2c-gpio,timeout-ms = <10>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c4_1>;
+		status = "okay";
+
+		// fluid valve encoder
+	};
+
+	lcd@0 {
+		compatible = "fsl,lcd";
+		ipu_id = <0>;
+		disp_id = <0>;
+		default_ifmt = "RGB565";
+//		pinctrl-names = "default";
+//		pinctrl-0 = <&pinctrl_ipu1_1>;
+		status = "okay";
+	};
+
+	bl: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm2 0 10000000 1>; /* 100 Hz, inverted polarity */
+		pwm-names = "backlight";
+		brightness-levels = <0 39 65 90 128 179 39 76 128 192 255>;
+ 		default-brightness-level = <10>;
+		low-threshold-brightness = <30>;
+	};
+
+    wlan {
+		compatible = "ti,wilink8";
+		interrupt-parent = <&gpio6>;
+		interrupts = <17 0>;
+		clocks = <&refclock>;
+		clock-names = "refclock";
+
+		refclock: refclock {
+			compatible = "ti,wilink-clock";
+			#clock-cells = <0>;
+			clock-frequency = <38400000>;
+		};
+	};
+
+	wlan_bt_rfkill {
+		compatible = "net,rfkill-gpio";
+		name = "wlan_bt_rfkill";
+		type = <2>;     /* bluetooth */
+		gpios = <&gpio6 18 0>;
+	};
+
+	valves {
+		compatible = "ivenix,pneumatic-valves";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_valves>;
+
+		/*
+		 * The control lines must be listed in the following order:
+		 *
+		 * pump positive vent
+		 * negative tank
+		 * IPC
+		 * positive tank
+		 * common vent
+		 * pump negative vent
+		 */
+		enables = <&gpio2 18 0>, <&gpio2 27 0>, <&gpio2 25 0>, <&gpio2 19 0>, <&gpio2 26 0>, <&gpio2 28 0>;
+	};
+
+	lvp-control-signals {
+		compatible = "gpio-of-helper";
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvpio>;
+
+		audio-pwr-en {
+			gpio-name = "AUDIO_PWR_EN";
+			gpio = <&gpio5 4 0>;
+			output;
+			init-low;
+		};
+
+		av-motor-en {
+			gpio-name = "AV_MOTOR_ENn";
+			gpio = <&gpio2 23 0>;
+			output;
+			init-high;
+		};
+
+		av-motor-dir {
+			gpio-name = "AV_MOTOR_DIR";
+			gpio = <&gpio2 16 0>;
+			output;
+			init-low;
+		};
+
+		/* Set ID */
+
+		set-id-en {
+			gpio-name = "SET_ID_EN";
+			gpio = <&gpio6 5 0>;
+			output;
+			init-high;
+		};
+
+		set-id-addr1 {
+			gpio-name = "SET_ID_ADDR1";
+			gpio = <&gpio6 0 0>;
+			output;
+            init-low;
+		};
+
+		set-id-addr2 {
+			gpio-name = "SET_ID_ADDR2";
+			gpio = <&gpio6 1 0>;
+			output;
+            init-low;
+		};
+
+		set-id-addr3 {
+			gpio-name = "SET_ID_ADDR3";
+			gpio = <&gpio6 2 0>;
+			output;
+            init-low;
+		};
+
+		set-id-mark {
+			gpio-name = "SET_ID_MARK";
+			gpio = <&gpio6 4 0>;
+			input;
+		};
+
+		/* misc */
+
+		enable-sys-12v {
+			gpio-name = "ENABLE_SYS_12V";
+			gpio = <&gpio1 4 0>;
+			output;
+			init-low;
+		};
+
+		run-from-batt1 {
+			gpio-name = "RUN_FROM_BATT1";
+			gpio = <&gpio6 3 0>;
+			input;
+		};
+
+		run-from-batt2 {
+			gpio-name = "RUN_FROM_BATT2";
+			gpio = <&gpio6 31 0>;
+			input;
+		};
+
+        pp-com-rqst-to-som {
+            gpio-name = "PP_COM_RQST_TO_SOM";
+			gpio = <&gpio6 6 0>;
+			input;
+         };
+
+
+		/* LCD */
+
+		lcd-en {
+			gpio-name = "LCD_EN";
+			gpio = <&gpio5 20 0>;
+			output;
+			init-low;
+		};
+
+		lcd-bl-en {
+			gpio-name = "LCD_BL_EN";
+			gpio = <&gpio5 21 0>;
+			output;
+			init-low;
+		};
+
+		/* air compressor */
+
+		air-pump-drv {
+			gpio-name = "AIR_PUMP_DRV";
+			gpio = <&gpio4 14 0>;
+			output;
+			init-low;
+		};
+        
+        
+
+	};
+
+};
+
+
+	
+
+&audmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_audmux_2>;
+	status = "okay";
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	hog {
+		pinctrl_hog: hoggrp {
+			fsl,pins = <
+				//MX6QDL_PAD_SD3_DAT7__GPIO6_IO17		0x0001b0b0	/* wl12xx_wl_irq */
+				//MX6QDL_PAD_SD3_DAT6__GPIO6_IO18		0x000000b0	/* wl12xx_bt_en */
+				//MX6QDL_PAD_SD3_RST__GPIO7_IO08		0x000000b0	/* wl12xx_wl_en */
+				MX6QDL_PAD_GPIO_17__GPIO7_IO12		0x80000000	/* PMIC irq */
+				MX6QDL_PAD_ENET_RXD0__OSC32K_32K_OUT	0x80000000	/* WIFI Slow clock */
+
+				MX6QDL_PAD_GPIO_3__CCM_CLKO2		0x000130b0	/* Camera MCLK */
+
+				MX6QDL_PAD_GPIO_0__CCM_CLKO1		0x000130b0	/* Audio Codec Clock */
+			>;
+		};
+	};
+
+	i2c4 {
+		pinctrl_i2c4_1: i2c4grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_A17__GPIO2_IO21 0x00017070 /* SDA */
+				MX6QDL_PAD_EIM_A18__GPIO2_IO20 0x00017070 /* SCL */
+			>;
+		};
+	};
+
+	spi1 {
+		pinctrl_spi1: spi1grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_DISP0_DAT20__ECSPI1_SCLK 0x100b1
+				MX6QDL_PAD_DISP0_DAT22__ECSPI1_MISO 0x100b1
+				MX6QDL_PAD_DISP0_DAT21__ECSPI1_MOSI 0x100b1
+
+				MX6QDL_PAD_DISP0_DAT23__GPIO5_IO17 0x80000000
+				MX6QDL_PAD_KEY_COL2__GPIO4_IO10 0x80000000
+			>;
+		};
+	};
+
+	spi2 {
+		pinctrl_spi2: spi2grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_DISP0_DAT19__ECSPI2_SCLK 0x100b1
+				MX6QDL_PAD_CSI0_DAT10__ECSPI2_MISO 0x100b1
+				MX6QDL_PAD_CSI0_DAT9__ECSPI2_MOSI 0x100b1
+
+				MX6QDL_PAD_DISP0_DAT18__GPIO5_IO12 0x80000000
+			>;
+		};
+	};
+
+	spi4 {
+		pinctrl_spi4: spi4grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_D21__ECSPI4_SCLK 0x800100b1
+				MX6QDL_PAD_EIM_D22__ECSPI4_MISO 0x800100b1
+			>;
+		};
+	};
+
+	touch {
+		edt_ft5x06_pins: ft5x06grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_CSI0_MCLK__GPIO5_IO19 0x80000000	/* TOUCH_PANEL_INTn */
+                MX6QDL_PAD_CSI0_DAT8__GPIO5_IO26 0x80000000	/* TOUCH_PANEL_RSTn */ 
+			>;
+		};
+	};
+
+	valves {
+		pinctrl_valves: valves-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_A20__GPIO2_IO18	0x80000000	/* PNEU_VLV_ON_1 */
+				MX6QDL_PAD_EIM_A19__GPIO2_IO19	0x80000000	/* PNEU_VLV_ON_2 */
+				MX6QDL_PAD_EIM_OE__GPIO2_IO25	0x80000000	/* PNEU_VLV_ON_3 */
+				MX6QDL_PAD_EIM_RW__GPIO2_IO26	0x80000000	/* PNEU_VLV_ON_4 */
+				MX6QDL_PAD_EIM_LBA__GPIO2_IO27	0x80000000	/* PNEU_VLV_ON_5 */
+				MX6QDL_PAD_EIM_EB0__GPIO2_IO28	0x80000000	/* PNEU_VLV_ON_6 */
+			>;
+		};
+	};
+
+	lvpio {
+		pinctrl_lvpio: lvpio-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_BCLK__GPIO6_IO31	0x80000000	/* RUN_FROM_BATT2 */
+				MX6QDL_PAD_EIM_WAIT__GPIO5_IO00	0x80000000	/* AUDIO_AMP_EN */
+				MX6QDL_PAD_EIM_A24__GPIO5_IO04	0x80000000	/* AUDIO_PWR_EN */
+				MX6QDL_PAD_EIM_A23__GPIO6_IO06  0x80000000  /* PP_COM_RQST_TO_SOM */
+                MX6QDL_PAD_EIM_CS0__GPIO2_IO23	0x80000000	/* AV_MOTOR_ENn */
+				MX6QDL_PAD_EIM_A22__GPIO2_IO16	0x80000000	/* AV_MOTOR_DIR */
+				MX6QDL_PAD_CSI0_DAT19__GPIO6_IO05 0x80000000	/* SET_ID_EN */
+				MX6QDL_PAD_CSI0_DAT14__GPIO6_IO00 0x80000000	/* SET_ID_ADDR1 */
+				MX6QDL_PAD_CSI0_DAT15__GPIO6_IO01 0x80000000	/* SET_ID_ADDR2 */
+				MX6QDL_PAD_CSI0_DAT16__GPIO6_IO02 0x80000000	/* SET_ID_ADDR3 */
+				MX6QDL_PAD_CSI0_DAT17__GPIO6_IO03 0x80000000	/* RUN_FROM_BATT1 */
+				MX6QDL_PAD_CSI0_DAT18__GPIO6_IO04 0x80000000	/* SET_ID_MARK */ 
+				MX6QDL_PAD_GPIO_4__GPIO1_IO04	0x80000000	    /* ENABLE_SYS_12V */
+				MX6QDL_PAD_CSI0_DATA_EN__GPIO5_IO20 0x80000000	/* LCD_EN */
+				MX6QDL_PAD_CSI0_VSYNC__GPIO5_IO21 0x80000000	/* LCD_BL_EN */
+				MX6QDL_PAD_KEY_COL4__GPIO4_IO14	0x80000000	/* AIR_PUMP_DRV */
+
+			>;
+		};
+	};
+};
+
+&i2c2 {
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c2_2>;
+	status = "okay";
+
+	pmic: pfuze100@08 {
+		compatible = "fsl,pfuze100";
+		reg = <0x08>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <12 0>;
+
+		regulators {
+			sw1a_reg: sw1ab {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw1c_reg: sw1c {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw2_reg: sw2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3a_reg: sw3a {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3b_reg: sw3b {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw4_reg: sw4 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+			};
+
+			snvs_reg: vsnvs {
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vref_reg: vrefddr {
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vgen1_reg: vgen1 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen2_reg: vgen2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen3_reg: vgen3 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen4_reg: vgen4 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen5_reg: vgen5 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen6_reg: vgen6 {
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+		};
+	};
+
+	codec: tlv320aic3x@1b {
+		compatible = "ti,tlv320aic3x";
+		reg = <0x1b>;
+		clocks = <&clks 201>;
+		clock-names = "clko_clk";
+		IOVDD-supply = <&reg_audio>;
+		DVDD-supply = <&reg_audio>;
+		AVDD-supply = <&reg_audio>;
+		DRVDD-supply = <&reg_audio>;
+		gpio-reset = <&gpio1 0 1>;
+		gpio-cfg = <
+			0x0000 /* 0:Default */
+			0x0000 /* 1:Default */
+			0x0013 /* 2:FN_DMICCLK */
+			0x0000 /* 3:Default */
+			0x8014 /* 4:FN_DMICCDAT */
+			0x0000 /* 5:Default */
+		>;
+       	};
+};
+
+&i2c3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c3_3>;
+	status = "okay";
+
+	touchscreen {
+		compatible = "edt,ft5x06";
+		reg = <0x38>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&edt_ft5x06_pins>;
+		interrupt-parent = <&gpio5>;
+		interrupts = <19 0>;
+		reset-gpios = <&gpio5 26 1>;
+	};
+};
+
+
+&uart4 {
+	/* Safety Processor I/F */
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart4_2>;
+	status = "okay";
+};
+
+&uart5 {
+	/* Linux Console */
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart5_1>;
+	status = "okay";
+};
+
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2_2>;
+	vmmc-supply = <&reg_mmc_3p3v>;
+	status = "okay";
+};
+
+
+/* LCD */
+
+&pwm2 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_pwm2_1>;
+        status = "okay";
+};
+
+/* 
+ * SPI1
+ *
+ * SS0: ADC
+ * SS1: barometric pressure
+ */
+
+&ecspi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi1>;
+
+	fsl,spi-num-chipselects = <2>;
+	cs-gpios = <&gpio5 17 0>, <&gpio4 10 0>;
+	status = "okay";
+
+	adc: ad7190@0 {
+		/* AD7190 */
+		compatible = "spidev";
+		reg = <0>;
+		spi-max-frequency = <1500000>;
+	};
+
+	baro: m25p80@1 {
+		/* Barometric pressure sensor */
+		compatible = "spidev";
+		reg = <1>;
+		spi-max-frequency = <1500000>;
+	};
+};
+
+/*
+ * SPI2
+ *
+ * SS0: Power Processor
+ */
+
+&ecspi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi2>;
+
+	fsl,spi-num-chipselects = <1>;
+	cs-gpios = <&gpio5 12 0>;
+	status = "okay";
+
+	powerproc1: powerproc1@0 {
+		compatible = "spidev";
+		reg = <0>;
+		spi-max-frequency = <100000>;
+	        spi-cs-setup-time = <1>;       /* for cs-gpios, in milliseconds */
+
+	};
+};
+
+/*
+ * SPI4
+ *
+ * pressure sensors
+ */
+
+&ecspi4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi4>;
+
+	fsl,spi-num-chipselects = <1>;
+	status = "okay";
+};
+
+&gpmi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
+
+	nand-bus-width = <8>;
+	nand-ecc-mode = "hw";
+
+	status = "okay";
+};
+
+&ldb {
+	ipu_id = <1>;
+	disp_id = <0>;
+	ext_ref = <1>;
+	mode = "sin1";
+	sec_ipu_id = <1>;
+	sec_disp_id = <1>;
+	status = "okay";
+};
+
+&ssi2 {
+	fsl,mode = "i2s-slave";
+	status = "okay";
+};
+
+&cpu0 {
+	arm-supply = <&sw1a_reg>;
+	soc-supply = <&sw1c_reg>;
+	pu-supply = <&pu_dummy>; /* use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpc {
+	fsl,cpu_pupscr_sw2iso = <0xf>;
+	fsl,cpu_pupscr_sw = <0xf>;
+	fsl,cpu_pdnscr_iso2sw = <0x1>;
+	fsl,cpu_pdnscr_iso = <0x1>;
+	fsl,ldo-bypass = <1>; /* use ldo-bypass, u-boot will check it and configure */
+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+
+&usdhc3 {	/* uSDHC3, TiWi wl1271 7 Wilink8 WL18xx*/
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-0 = <&pinctrl_usdhc3_2>;
+	pinctrl-1 = <&pinctrl_usdhc3_2_100mhz>;
+	pinctrl-2 = <&pinctrl_usdhc3_2_200mhz>;
+	keep-power-in-suspend;
+	enable-sdio-wakeup;
+	vmmc-supply = <&wlan_en_reg>;        
+	non-removable;
+	cap-power-off-card;
+	status = "okay";
+};
+
+&gpu {
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};

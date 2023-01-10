@@ -1,0 +1,385 @@
+/*
+ * Copyright 2014 Ivenix Corp.
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+/dts-v1/;
+
+#include "imx6q.dtsi"
+
+/ {
+	model = "Ivenix i.MX6 Quad Variscite Board";
+	compatible = "fsl,imx6q-maryann", "fsl,imx6q";
+
+	memory {
+		reg = <0x10000000 0x40000000>;
+	};
+
+	regulators {
+		compatible = "simple-bus";
+
+		reg_mmc_3p3v: 3p3v {
+			compatible = "regulator-fixed";
+			regulator-name = "3P3V";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		reg_wlan_1p8v: 1p8v {
+			compatible = "regulator-fixed";
+			regulator-name = "vmmc";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			/* regulator-ramp-delay =  */
+			gpio = <&gpio7 8 0>;
+			enable-active-high;
+		};
+
+		reg_audio: wm8962_supply {
+			compatible = "regulator-fixed";
+			regulator-name = "wm8962-supply";
+			gpio = <&gpio4 10 0>;
+			enable-active-high;
+		};
+	};
+
+	sound {
+		compatible = "fsl,imx-audio-tlv320aic3x";
+		model = "tlv320aic3x-audio";
+		ssi-controller = <&ssi2>;
+		audio-codec = <&codec>;
+		audio-routing =
+			/* Headphone connected to HPLOUT, HPROUT */
+			"Headphone Jack",       "HPLOUT",
+			"Headphone Jack",       "HPROUT",
+			/* Line Out connected to LLOUT, RLOUT */
+			"Line Out",      	"LLOUT",
+			"Line Out",     	"RLOUT",
+			/* Mic connected to (MIC3L | MIC3R) */
+			"Mic Bias",		"MIC3L",
+			"Mic Bias",		"MIC3R",
+			"Mic Jack",		"Mic Bias",
+			/* Line In connected to (LINE1L | LINE2L), (LINE1R | LINE2R) */
+			"Line In",		"LINE1L",
+			"Line In",		"LINE2L",
+			"Line In",		"LINE1R",
+			"Line In",		"LINE2R";
+		mux-int-port = <2>;
+		mux-ext-port = <3>;
+	};
+
+	lvp-control-signals {
+		compatible = "gpio-of-helper";
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvpio>;
+
+		j40-6 {
+			gpio-name = "J40.6";
+			gpio = <&gpio2 21 0>;
+			input;
+		};
+	};
+
+	i2c4: i2c@4 {
+		compatible = "i2c-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		gpios = <&gpio2 21 0	// SDA
+			 &gpio2 20 0	// SCL
+			>;
+		i2c-gpio,delay-us = <5>;
+		i2c-gpio,timeout-ms = <10>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c4_1>;
+		status = "okay";
+	};
+};
+
+&audmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_audmux_2>;
+	status = "okay";
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	hog {
+		pinctrl_hog: hoggrp {
+			fsl,pins = <
+				MX6QDL_PAD_SD3_DAT7__GPIO6_IO17                 0x100b0                 /* wl12xx_wl_irq */
+				MX6QDL_PAD_SD3_DAT6__GPIO6_IO18                 0x000b0                 /* wl12xx_bt_en */
+				MX6QDL_PAD_SD3_RST__GPIO7_IO08                  0x000b0                 /* wl12xx_wl_en */
+				MX6QDL_PAD_GPIO_17__GPIO7_IO12                  0x80000000		/* PMIC irq */
+				MX6QDL_PAD_ENET_RXD0__OSC32K_32K_OUT            0x80000000              /* WIFI Slow clock */
+
+				MX6QDL_PAD_ENET_CRS_DV__GPIO1_IO25	0x80000000	// RGMII PHY RESET
+
+				MX6QDL_PAD_GPIO_3__CCM_CLKO2                    0x130b0                 /* Camera MCLK */
+			>;
+		};
+	};
+
+	lvpio {
+		pinctrl_lvpio: lvpio-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_A17__GPIO2_IO21 0x0000B0B1
+			>;
+		};
+	};
+
+	i2c4 {
+		pinctrl_i2c4_1: i2c4grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_A17__GPIO2_IO21 0x0000F040 // SDA
+				MX6QDL_PAD_EIM_A18__GPIO2_IO20 0x00017070 // SCL
+			>;
+		};
+	};
+
+	spi4 {
+		pinctrl_spi4: spi4grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_D21__ECSPI4_SCLK 0x800100b1
+				MX6QDL_PAD_EIM_D22__ECSPI4_MISO 0x800100b1
+
+				MX6QDL_PAD_EIM_D19__GPIO3_IO19	0x80000000	/* CS_PRESSURE1n */
+				MX6QDL_PAD_EIM_D20__GPIO3_IO20	0x80000000	/* CS_PRESSURE2n */
+				MX6QDL_PAD_EIM_D23__GPIO3_IO23	0x80000000	/* CS_PRESSURE3n */
+				MX6QDL_PAD_EIM_D24__GPIO3_IO24	0x80000000	/* CS_PRESSURE4n */
+			>;
+		};
+	};
+};
+
+&i2c2 {
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c2_2>;
+	status = "okay";
+
+	pmic: pfuze100@08 {
+		compatible = "fsl,pfuze100";
+		reg = <0x08>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <12 0>;
+
+		regulators {
+			sw1a_reg: sw1ab {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw1c_reg: sw1c {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw2_reg: sw2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3a_reg: sw3a {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3b_reg: sw3b {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+
+			sw4_reg: sw4 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3950000>;
+			};
+
+			snvs_reg: vsnvs {
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vref_reg: vrefddr {
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vgen1_reg: vgen1 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen2_reg: vgen2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen3_reg: vgen3 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen4_reg: vgen4 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen5_reg: vgen5 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vgen6_reg: vgen6 {
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+		};
+	};
+
+	codec: tlv320aic3x@1b {
+		compatible = "ti,tlv320aic3x";
+		reg = <0x1b>;
+		clocks = <&clks 201>;
+		clock-names = "clko_clk";
+		IOVDD-supply = <&reg_audio>;
+		DVDD-supply = <&reg_audio>;
+		AVDD-supply = <&reg_audio>;
+		DRVDD-supply = <&reg_audio>;
+		gpio-reset = <&gpio1 0 1>;
+		gpio-cfg = <
+			0x0000 /* 0:Default */
+			0x0000 /* 1:Default */
+			0x0013 /* 2:FN_DMICCLK */
+			0x0000 /* 3:Default */
+			0x8014 /* 4:FN_DMICCDAT */
+			0x0000 /* 5:Default */
+		>;
+       	};
+};
+
+
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1_1>;
+	status = "okay";
+};
+
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart3_2>;
+	status = "okay";
+};
+
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2_2>;
+	vmmc-supply = <&reg_mmc_3p3v>;
+	status = "okay";
+};
+
+&usdhc3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc3_2>;
+	status = "okay";
+
+	non-removable;
+	max-frequency = <25000000>;
+	vmmc-supply = <&reg_wlan_1p8v>;
+
+	wl12xx@1 {
+		compatible="ti,wl12xx";
+		interrupt = <&gpio6 17 0>;
+		bt_en = <&gpio6 18 0>;
+		wl_en = <&gpio7 8 0>;
+	};
+};
+
+&gpmi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
+	nand-bus-width = <8>;
+	nand-ecc-mode = "hw";
+	status = "okay";
+/*
+	nand@1,0 {
+		linux,mtd-name= "micron,mt29f1g08abb";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		nand-bus-width = <8>;
+
+		partition@0 {
+			label = "xloader-nand";
+			reg = <0 0x80000>;
+		};
+	};
+*/
+};
+
+&fec {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet_4>;
+	phy-mode = "rgmii";
+	phy-reset-gpios = <&gpio1 25 0>;
+	status = "okay";
+};
+
+&ssi2 {
+	fsl,mode = "i2s-slave";
+	status = "okay";
+};
+
+/* 
+ * SPI4
+ *
+ * pressure sensors 
+ */
+
+&ecspi3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi4>;
+
+	fsl,spi-num-chipselects = <1>;
+	status = "okay";
+
+	pressures@0 {
+		compatible = "pressures";
+		spi-max-frequency = <800000>;
+		reg = <0>;
+		cs-gpios = <&gpio3 19 0>, <&gpio3 20 0>, <&gpio3 23 0>, <&gpio3 24 0>;
+	};
+};
